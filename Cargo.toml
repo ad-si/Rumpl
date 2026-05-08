@@ -8,12 +8,26 @@ repository = "https://github.com/ad-si/rumpl"
 keywords = ["midi", "synth", "audio", "cli", "general-midi"]
 categories = ["command-line-utilities", "multimedia::audio"]
 
+[lib]
+name = "rumpl"
+path = "src/lib.rs"
+
+[[bin]]
+name = "rumpl"
+path = "src/main.rs"
+required-features = ["cli", "play"]
+
+[features]
+default = ["cli", "play"]
+cli = ["dep:clap"]
+play = ["dep:cpal", "dep:ringbuf"]
+
 [dependencies]
-clap = { version = "4", features = ["derive"] }
+clap = { version = "4", features = ["derive"], optional = true }
 midly = "0.5"
 hound = "3"
-cpal = "0.15"
-ringbuf = "0.4"
+cpal = { version = "0.15", optional = true }
+ringbuf = { version = "0.4", optional = true }
 anyhow = "1"
 
 [profile.release]

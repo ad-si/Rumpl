@@ -1,11 +1,8 @@
 mod cli;
-mod midi;
-mod output;
-mod sequencer;
-mod synth;
 
 use anyhow::Result;
 use clap::Parser;
+use rumpl::{midi, output};
 
 fn main() -> Result<()> {
   let args = cli::Cli::parse();
