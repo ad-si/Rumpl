@@ -1,0 +1,22 @@
+[package]
+name = "rumpl"
+version = "0.1.0"
+edition = "2024"
+description = "Sample-free General MIDI player and renderer"
+license = "ISC"
+repository = "https://github.com/ad-si/rumpl"
+keywords = ["midi", "synth", "audio", "cli", "general-midi"]
+categories = ["command-line-utilities", "multimedia::audio"]
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+midly = "0.5"
+hound = "3"
+cpal = "0.15"
+ringbuf = "0.4"
+anyhow = "1"
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
