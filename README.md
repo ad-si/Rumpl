@@ -8,6 +8,12 @@ Expect a chiptune / analog-synth aesthetic.
 ## Install
 
 ```sh
+cargo install rumpl
+```
+
+Or from a local checkout:
+
+```sh
 cargo install --path .
 ```
 
