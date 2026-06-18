@@ -29,6 +29,130 @@ pub fn load(path: &std::path::Path) -> Result<Sequence> {
   parse(&bytes)
 }
 
+/// Per-channel usage summary derived from a parsed file.
+#[derive(Clone, Debug)]
+pub struct ChannelInfo {
+  /// 0-based MIDI channel.
+  pub channel: u8,
+  /// Channel 9 is the GM drum channel.
+  pub is_drums: bool,
+  /// Last program selected on the channel (0 if none was set).
+  pub program: u8,
+  /// Number of note-on events (velocity > 0) on the channel.
+  pub note_count: usize,
+}
+
+/// File-level metadata for the `info` subcommand.
+#[derive(Clone, Debug)]
+pub struct FileInfo {
+  /// SMF format: 0 (single track), 1 (parallel), or 2 (sequential).
+  pub format: u8,
+  /// Number of tracks in the file.
+  pub track_count: usize,
+  /// Pulses per quarter note, or `None` for SMPTE-timed files.
+  pub ppq: Option<u16>,
+  /// Total length in seconds.
+  pub duration: f64,
+  /// Distinct tempos in BPM, in order of first appearance.
+  pub tempos_bpm: Vec<f64>,
+  /// Total note-on events (velocity > 0) across all channels.
+  pub note_count: usize,
+  /// Channels that carry at least one event, sorted by channel number.
+  pub channels: Vec<ChannelInfo>,
+}
+
+pub fn info(path: &std::path::Path) -> Result<FileInfo> {
+  let bytes = std::fs::read(path)
+    .with_context(|| format!("reading {}", path.display()))?;
+  analyze(&bytes)
+}
+
+pub fn analyze(bytes: &[u8]) -> Result<FileInfo> {
+  let smf = Smf::parse(bytes).map_err(|e| anyhow!("parse MIDI: {e}"))?;
+  let seq = parse(bytes)?;
+
+  let (format, ppq) = match smf.header.timing {
+    Timing::Metrical(t) => {
+      let fmt = match smf.header.format {
+        midly::Format::SingleTrack => 0,
+        midly::Format::Parallel => 1,
+        midly::Format::Sequential => 2,
+      };
+      (fmt, Some(t.as_int()))
+    }
+    Timing::Timecode(..) => {
+      let fmt = match smf.header.format {
+        midly::Format::SingleTrack => 0,
+        midly::Format::Parallel => 1,
+        midly::Format::Sequential => 2,
+      };
+      (fmt, None)
+    }
+  };
+
+  // Distinct tempos in order of first appearance across the merged timeline.
+  let mut tempos_bpm: Vec<f64> = Vec::new();
+  for track in smf.tracks.iter() {
+    for ev in track.iter() {
+      if let TrackEventKind::Meta(MetaMessage::Tempo(uspq)) = ev.kind {
+        let bpm = 60_000_000.0 / uspq.as_int() as f64;
+        if !tempos_bpm.iter().any(|&b| (b - bpm).abs() < 1e-3) {
+          tempos_bpm.push(bpm);
+        }
+      }
+    }
+  }
+  if tempos_bpm.is_empty() {
+    tempos_bpm.push(120.0);
+  }
+
+  // Per-channel program and note tallies from the merged event stream.
+  let mut programs = [0u8; 16];
+  let mut notes = [0usize; 16];
+  let mut seen = [false; 16];
+  for te in &seq.events {
+    match te.event {
+      Event::NoteOn {
+        channel, velocity, ..
+      } if velocity > 0 => {
+        notes[channel as usize] += 1;
+        seen[channel as usize] = true;
+      }
+      Event::Program { channel, program } => {
+        programs[channel as usize] = program;
+        seen[channel as usize] = true;
+      }
+      Event::NoteOn { channel, .. }
+      | Event::NoteOff { channel, .. }
+      | Event::Cc { channel, .. }
+      | Event::PitchBend { channel, .. } => {
+        seen[channel as usize] = true;
+      }
+      Event::EndOfTrack => {}
+    }
+  }
+
+  let channels: Vec<ChannelInfo> = (0..16u8)
+    .filter(|&c| seen[c as usize])
+    .map(|c| ChannelInfo {
+      channel: c,
+      is_drums: c == 9,
+      program: programs[c as usize],
+      note_count: notes[c as usize],
+    })
+    .collect();
+
+  Ok(FileInfo {
+    format,
+    track_count: smf.tracks.len(),
+    ppq,
+    duration: seq.duration,
+    tempos_bpm,
+    note_count: notes.iter().sum(),
+    channels,
+  })
+}
+
 pub fn parse(bytes: &[u8]) -> Result<Sequence> {
   let smf = Smf::parse(bytes).map_err(|e| anyhow!("parse MIDI: {e}"))?;
 
@@ -227,6 +351,23 @@ mod tests {
     let dt = seq.events[1].time - seq.events[0].time;
     // 60 BPM ⇒ 1 quarter = 1.0 s, not the 0.5 s of the default 120 BPM.
     assert!((dt - 1.0).abs() < 1e-3, "dt = {dt} (expected ≈ 1.0)");
+  }
+
+  #[test]
+  fn analyze_reports_header_tempo_and_voices() {
+    let info = analyze(&smf_with_tempo()).expect("analyze");
+    assert_eq!(info.format, 0);
+    assert_eq!(info.track_count, 1);
+    assert_eq!(info.ppq, Some(480));
+    assert_eq!(info.note_count, 1);
+    // 60 BPM set at tick 0.
+    assert_eq!(info.tempos_bpm.len(), 1);
+    assert!((info.tempos_bpm[0] - 60.0).abs() < 1e-3);
+    // Only channel 0 is used, and it is not the drum channel.
+    assert_eq!(info.channels.len(), 1);
+    assert_eq!(info.channels[0].channel, 0);
+    assert!(!info.channels[0].is_drums);
+    assert_eq!(info.channels[0].note_count, 1);
   }
 
   #[test]

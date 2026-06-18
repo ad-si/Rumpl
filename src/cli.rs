@@ -28,6 +28,11 @@ pub enum Cmd {
     #[arg(long, hide = true)]
     soundfont: Option<PathBuf>,
   },
+  /// Show information about a MIDI file (length, tempo, voices).
+  Info {
+    /// Input .mid file
+    file: PathBuf,
+  },
   /// Render a MIDI file to a 16-bit stereo WAV.
   Render {
     /// Input .mid file
