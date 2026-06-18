@@ -59,6 +59,28 @@ pub struct LfoSpec {
   pub delay: f32, // seconds before LFO ramps in
 }
 
+/// One string rank of a plucked-string (Karplus-Strong) voice. A harpsichord
+/// stop is several of these — e.g. an 8' rank plus a 4' rank an octave up.
+#[derive(Clone, Copy, Debug)]
+pub struct StringSpec {
+  pub detune_cents: f32,
+  pub octave: i32,
+  pub mix: f32,
+}
+
+/// Parameters for a plucked-string voice synthesised with an extended
+/// Karplus-Strong loop (delay line + damping loop filter + noise excitation).
+/// When a `Patch` carries one of these the synth builds a `VoiceKind::Plucked`
+/// instead of the oscillator-based `VoiceKind::Tonal`.
+#[derive(Clone, Copy, Debug)]
+pub struct PluckSpec {
+  pub strings: &'static [StringSpec],
+  pub decay: f32, // ring time in seconds at middle C (scaled shorter for higher notes)
+  pub damp: f32, // loop low-pass amount 0..0.5 — higher damps the highs faster (darker)
+  pub pluck_pos: f32, // 0..0.5 plucking point; shapes the comb colouration of the attack
+  pub damper: f32,    // note-off damping time in seconds
+}
+
 /// Two-operator FM: modulator/carrier ratio and modulation index in radians,
 /// both encoded as fixed-point ×10 to keep `const` evaluation simple.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -88,6 +110,7 @@ pub struct Patch {
   pub lfo: Option<LfoSpec>,
   pub fm: Option<FmSpec>,
   pub gain: f32,
+  pub pluck: Option<PluckSpec>,
 }
 
 const fn p(
@@ -105,6 +128,26 @@ const fn p(
     lfo,
     fm,
     gain,
+    pluck: None,
+  }
+}
+
+/// Build a plucked-string patch. `oscs`/`env` are kept only as an inert
+/// fallback (and to satisfy the patch-table invariants); the actual voice is
+/// driven entirely by the Karplus-Strong `PluckSpec`.
+const fn plucked(
+  oscs: &'static [OscSpec],
+  gain: f32,
+  pluck: PluckSpec,
+) -> Patch {
+  Patch {
+    oscs,
+    env: EnvSpec::adsr(0.001, 0.5, 0.0, 0.1),
+    filter: None,
+    lfo: None,
+    fm: None,
+    gain,
+    pluck: Some(pluck),
   }
 }
 
@@ -180,6 +223,33 @@ const HONKY_OSC: &[OscSpec] = &[
   OscSpec::new(Wave::Triangle, -10.0, 0.6),
   OscSpec::new(Wave::Triangle, 10.0, 0.6),
 ];
+
+// Inert oscillator fallback for the harpsichord; the real voice is the
+// Karplus-Strong pluck below.
+const HARPSI_OSC: &[OscSpec] = &[OscSpec::new(Wave::Saw, 0.0, 1.0)];
+
+// Harpsichord: an 8' rank plus the octave-up 4' rank. The 4' is mixed lower and
+// detuned a few cents sharp so the two strings beat against each other.
+const HARPSI_STRINGS: &[StringSpec] = &[
+  StringSpec {
+    detune_cents: 0.0,
+    octave: 0,
+    mix: 1.0,
+  }, // 8'
+  StringSpec {
+    detune_cents: 4.0,
+    octave: 1,
+    mix: 0.5,
+  }, // 4'
+];
+
+const PLUCK_HARPSI: PluckSpec = PluckSpec {
+  strings: HARPSI_STRINGS,
+  decay: 1.6,
+  damp: 0.03,
+  pluck_pos: 0.15,
+  damper: 0.08,
+};
 
 const ACCORDION_OSC: &[OscSpec] = &[
   OscSpec::new(Wave::Saw, -5.0, 0.5),
@@ -322,14 +392,11 @@ const fn patch_for(prog: u8) -> Patch {
       Some(FmSpec::new(10, 30)),
       0.7,
     ),
-    6 => p(
-      // harpsichord: sharp attack, fast decay, brighter
-      SAW,
-      EnvSpec::adsr(0.001, 0.5, 0.0, 0.1),
-      lp(5_000.0, 0.8, 0.7, 0.0),
-      None,
-      None,
-      0.7,
+    6 => plucked(
+      // harpsichord: physically modelled plucked string (Karplus-Strong)
+      HARPSI_OSC,
+      0.9,
+      PLUCK_HARPSI,
     ),
     7 => p(
       // clavi

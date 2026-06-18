@@ -52,15 +52,27 @@ impl Synth {
       Voice::new_drum(self.sr, channel, note, vel, &dp, self.sample_clock)
     } else {
       let p = patches::gm_patch(ch.program);
-      Voice::new_tonal(
-        self.sr,
-        channel,
-        note,
-        vel,
-        &p,
-        ch.bend_semitones(),
-        self.sample_clock,
-      )
+      if p.pluck.is_some() {
+        Voice::new_plucked(
+          self.sr,
+          channel,
+          note,
+          vel,
+          &p,
+          ch.bend_semitones(),
+          self.sample_clock,
+        )
+      } else {
+        Voice::new_tonal(
+          self.sr,
+          channel,
+          note,
+          vel,
+          &p,
+          ch.bend_semitones(),
+          self.sample_clock,
+        )
+      }
     };
     self.add_voice(voice);
   }
