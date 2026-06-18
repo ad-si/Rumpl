@@ -22,6 +22,11 @@ fn main() -> Result<()> {
       let info = midi::info(&file)?;
       print_info(&file, &info);
     }
+    cli::Cmd::Instruments => {
+      for program in 0..128u8 {
+        println!("{:>3}  {}", program, gm_program_name(program));
+      }
+    }
     cli::Cmd::Render {
       file,
       out,

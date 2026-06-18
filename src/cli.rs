@@ -33,6 +33,8 @@ pub enum Cmd {
     /// Input .mid file
     file: PathBuf,
   },
+  /// List all available General MIDI instruments.
+  Instruments,
   /// Render a MIDI file to a 16-bit stereo WAV.
   Render {
     /// Input .mid file
