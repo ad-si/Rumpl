@@ -1,3 +1,4 @@
+pub mod demo;
 pub mod midi;
 pub mod output;
 pub mod sequencer;

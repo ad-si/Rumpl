@@ -35,6 +35,13 @@ pub enum Cmd {
   },
   /// List all available General MIDI instruments.
   Instruments,
+  /// Write an idiomatic demo phrase for a single GM program to a MIDI file.
+  Demo {
+    /// GM program number (0..127)
+    program: u8,
+    /// Output .mid file, or a directory to name the file automatically
+    out: PathBuf,
+  },
   /// Render a MIDI file to a 16-bit stereo WAV.
   Render {
     /// Input .mid file

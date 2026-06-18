@@ -3,7 +3,7 @@ mod cli;
 use anyhow::Result;
 use clap::Parser;
 use rumpl::synth::patches::gm_program_name;
-use rumpl::{midi, output};
+use rumpl::{demo, midi, output};
 
 fn main() -> Result<()> {
   let args = cli::Cli::parse();
@@ -26,6 +26,19 @@ fn main() -> Result<()> {
       for program in 0..128u8 {
         println!("{:>3}  {}", program, gm_program_name(program));
       }
+    }
+    cli::Cmd::Demo { program, out } => {
+      let out = if out.is_dir() {
+        out.join(demo::demo_filename(program))
+      } else {
+        out
+      };
+      demo::write_demo_midi(program, &out)?;
+      eprintln!(
+        "wrote demo of {} ({program}) → {}",
+        gm_program_name(program),
+        out.display()
+      );
     }
     cli::Cmd::Render {
       file,

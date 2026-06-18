@@ -1,6 +1,14 @@
 !tests/fixtures/*.wav
 *.wav
-/examples
+# Third-party song files stay out of the repo. The curated per-instrument demo
+# MIDIs (`make instruments`) and their compressed Opus renders (`make examples`)
+# are tracked; the intermediate WAVs are not.
+/examples/*
+!/examples/instruments/
+/examples/instruments/*
+!/examples/instruments/*.mid
+!/examples/instruments/*.opus
+!/examples/instruments/readme.md
 /target
 Cargo.lock.bak
 .direnv
