@@ -22,6 +22,7 @@ cargo install --path .
 
 ```sh
 rumpl play   file.mid               # real-time playback
+rumpl render file.mid               # render to file.wav alongside the input
 rumpl render file.mid out.wav       # offline render to 44.1 kHz / 16-bit stereo WAV
 ```
 

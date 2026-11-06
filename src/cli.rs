@@ -46,8 +46,8 @@ pub enum Cmd {
   Render {
     /// Input .mid file
     file: PathBuf,
-    /// Output .wav file
-    out: PathBuf,
+    /// Output .wav file (defaults to the input path with a .wav extension)
+    out: Option<PathBuf>,
     /// Master gain (0..1)
     #[arg(long, default_value_t = 0.8)]
     gain: f32,

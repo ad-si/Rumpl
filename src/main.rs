@@ -50,6 +50,7 @@ fn main() -> Result<()> {
     } => {
       warn_soundfont(soundfont.as_deref());
       let seq = midi::load(&file)?;
+      let out = out.unwrap_or_else(|| file.with_extension("wav"));
       output::render::render_to_wav(&seq, &out, sample_rate, gain, tail)?;
       eprintln!("rendered {} → {}", file.display(), out.display());
     }
